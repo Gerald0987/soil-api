@@ -8,12 +8,9 @@ app = Flask(__name__)
 
 # ============================================================
 # DOWNLOAD MODELS FROM GOOGLE DRIVE ON STARTUP
-# Since models are too large for GitHub, we store them on
-# Google Drive and download them when the API starts.
-# gdown is a library that downloads files from Google Drive.
+# Models are stored on Google Drive since they are too large
+# for GitHub. gdown downloads them when the API starts.
 # ============================================================
-
-# Map each model filename to its Google Drive file ID
 model_files = {
     'crop_label_encoder.pkl': '1Wzx_fwy38GD0eRqYfGDDLV-4wSdNYOe3',
     'crop_model.pkl':         '1W_n2sgcgw-VbJ7Wq5qIeU9anpCGmRmM1',
@@ -25,10 +22,8 @@ model_files = {
     'yield_model.pkl':        '1eW9PQSY1JeNMW2pzOR6qLDJ6Z4eX5Th3',
 }
 
-# Create models folder if it doesn't exist
 os.makedirs('models', exist_ok=True)
 
-# Download each model file if it doesn't already exist
 for filename, file_id in model_files.items():
     filepath = f'models/{filename}'
     if not os.path.exists(filepath):
@@ -36,13 +31,11 @@ for filename, file_id in model_files.items():
         url = f'https://drive.google.com/uc?id={file_id}'
         gdown.download(url, filepath, quiet=False)
     else:
-        print(f'{filename} already exists, skipping download.')
+        print(f'{filename} already exists, skipping.')
 
 print('All models ready!')
 
-# ============================================================
-# LOAD ALL MODELS INTO MEMORY
-# ============================================================
+# Load all models into memory
 fertility_model  = joblib.load('models/fertility_model.pkl')
 scaler_fertility = joblib.load('models/scaler_fertility.pkl')
 crop_model       = joblib.load('models/crop_model.pkl')
@@ -96,7 +89,9 @@ def predict():
         yield_input = [[nitrogen, phosphorus, potassium,
                         humidity, temperature, float(crop_encoded_yield)]]
         yield_scaled = scaler_yield.transform(yield_input)
-        yield_score = round(float(yield_model.predict(yield_scaled)[0]), 1)
+        raw_score = float(yield_model.predict(yield_scaled)[0])
+        raw_score = max(0, min(100, raw_score))
+        yield_score = round(raw_score, 1)
 
         return jsonify({
             'status': 'success',
