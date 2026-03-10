@@ -42,7 +42,6 @@ crop_model       = joblib.load('models/crop_model.pkl')
 scaler_crop      = joblib.load('models/scaler_crop.pkl')
 le_crop          = joblib.load('models/crop_label_encoder.pkl')
 yield_model      = joblib.load('models/yield_model.pkl')
-scaler_yield     = joblib.load('models/scaler_yield.pkl')
 le_yield         = joblib.load('models/yield_label_encoder.pkl')
 
 print('All models loaded!')
@@ -88,8 +87,7 @@ def predict():
 
         yield_input = [[nitrogen, phosphorus, potassium,
                         humidity, temperature, float(crop_encoded_yield)]]
-        yield_scaled = scaler_yield.transform(yield_input)
-        raw_score = float(yield_model.predict(yield_scaled)[0])
+        raw_score = float(yield_model.predict(yield_input)[0])
         raw_score = max(0, min(100, raw_score))
         yield_score = round(raw_score, 1)
 
