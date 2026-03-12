@@ -8,8 +8,6 @@ app = Flask(__name__)
 
 # ============================================================
 # DOWNLOAD MODELS FROM GOOGLE DRIVE ON STARTUP
-# Models are stored on Google Drive since they are too large
-# for GitHub. gdown downloads them when the API starts.
 # ============================================================
 model_files = {
     'crop_label_encoder.pkl': '1Wzx_fwy38GD0eRqYfGDDLV-4wSdNYOe3',
@@ -17,7 +15,6 @@ model_files = {
     'fertility_model.pkl':    '1FsvHWw9P7jvnjG768EDrETJGzz2-qG6m',
     'scaler_crop.pkl':        '1gwZSfLlTLjxIeM24JUYOKpq_99svOKPF',
     'scaler_fertility.pkl':   '1-_5TEvP7OGplN_kvfocSMPHJQPfQ4vFT',
-    'scaler_yield.pkl':       '1yBEsg8YNKegTXJmNFN2FLcNvoxeFwAAg',
     'yield_label_encoder.pkl':'1Or1-KIIJ2FEpQiAlE68JCxoFEOJwOCQS',
     'yield_model.pkl':        '1eW9PQSY1JeNMW2pzOR6qLDJ6Z4eX5Th3',
 }
@@ -35,7 +32,7 @@ for filename, file_id in model_files.items():
 
 print('All models ready!')
 
-# Load all models into memory
+# Load models
 fertility_model  = joblib.load('models/fertility_model.pkl')
 scaler_fertility = joblib.load('models/scaler_fertility.pkl')
 crop_model       = joblib.load('models/crop_model.pkl')
@@ -68,18 +65,18 @@ def predict():
         sensor_input = [[nitrogen, phosphorus, potassium,
                          humidity, temperature, soil_moisture]]
 
-        # Fertility prediction
+        # Fertility prediction (uses scaler)
         input_scaled_f = scaler_fertility.transform(sensor_input)
         fertility = fertility_model.predict(input_scaled_f)[0]
 
-        # Crop recommendation
+        # Crop recommendation (uses scaler)
         input_scaled_c = scaler_crop.transform(sensor_input)
         crop_probs = crop_model.predict_proba(input_scaled_c)[0]
         top_index = np.argmax(crop_probs)
         recommended_crop = le_crop.classes_[top_index]
         confidence = round(float(crop_probs[top_index]) * 100, 1)
 
-        # Yield prediction
+        # Yield prediction (NO scaler - Random Forest doesn't need it)
         if recommended_crop in le_yield.classes_:
             crop_encoded_yield = le_yield.transform([recommended_crop])[0]
         else:
@@ -88,15 +85,15 @@ def predict():
         yield_input = [[nitrogen, phosphorus, potassium,
                         humidity, temperature, float(crop_encoded_yield)]]
         raw_score = float(yield_model.predict(yield_input)[0])
-        raw_score = max(0, min(100, raw_score))
+        raw_score = max(25, min(100, raw_score))
         yield_score = round(raw_score, 1)
 
         return jsonify({
-            'status': 'success',
+            'status':           'success',
             'fertility_status': str(fertility),
             'recommended_crop': str(recommended_crop),
-            'crop_confidence': confidence,
-            'yield_score': yield_score
+            'crop_confidence':  confidence,
+            'yield_score':      yield_score
         })
 
     except Exception as e:
