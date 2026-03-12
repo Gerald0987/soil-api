@@ -58,13 +58,15 @@ FERTILITY_RANGES = {
 
 def apply_fertility_guardrail(raw_score, fertility_status):
     """
-    Clips the yield model's raw score to the valid range
-    for the given fertility status.
-    Example: High fertility but raw score = 25
-             → clipped up to 70 (minimum for High)
+    Scales the raw yield score into the valid fertility range.
+    A raw score of 25 maps to the minimum, 100 maps to the maximum.
+    This gives variety within each fertility level instead of clipping.
+    Example: High fertility (70-100), raw=40 → maps to ~76%
     """
     min_val, max_val = FERTILITY_RANGES.get(fertility_status, (25, 100))
-    return round(float(np.clip(raw_score, min_val, max_val)), 1)
+    # Scale raw score (25-100) into the fertility range
+    scaled = min_val + ((raw_score - 25) / (100 - 25)) * (max_val - min_val)
+    return round(float(np.clip(scaled, min_val, max_val)), 1)
 
 # ============================================================
 # API ROUTES
