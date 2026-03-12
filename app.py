@@ -44,6 +44,29 @@ le_yield         = joblib.load('models/yield_label_encoder.pkl')
 print('All models loaded!')
 
 # ============================================================
+# FERTILITY YIELD RANGES
+# Ensures yield score is always consistent with fertility
+# High  fertility → 70 to 100%
+# Medium fertility → 45 to 69%
+# Low   fertility → 25 to 44%
+# ============================================================
+FERTILITY_RANGES = {
+    'High':   (70, 100),
+    'Medium': (45, 69),
+    'Low':    (25, 44),
+}
+
+def apply_fertility_guardrail(raw_score, fertility_status):
+    """
+    Clips the yield model's raw score to the valid range
+    for the given fertility status.
+    Example: High fertility but raw score = 25
+             → clipped up to 70 (minimum for High)
+    """
+    min_val, max_val = FERTILITY_RANGES.get(fertility_status, (25, 100))
+    return round(float(np.clip(raw_score, min_val, max_val)), 1)
+
+# ============================================================
 # API ROUTES
 # ============================================================
 @app.route('/', methods=['GET'])
@@ -65,18 +88,18 @@ def predict():
         sensor_input = [[nitrogen, phosphorus, potassium,
                          humidity, temperature, soil_moisture]]
 
-        # Fertility prediction (uses scaler)
+        # Fertility prediction
         input_scaled_f = scaler_fertility.transform(sensor_input)
-        fertility = fertility_model.predict(input_scaled_f)[0]
+        fertility = str(fertility_model.predict(input_scaled_f)[0])
 
-        # Crop recommendation (uses scaler)
+        # Crop recommendation
         input_scaled_c = scaler_crop.transform(sensor_input)
         crop_probs = crop_model.predict_proba(input_scaled_c)[0]
         top_index = np.argmax(crop_probs)
         recommended_crop = le_crop.classes_[top_index]
         confidence = round(float(crop_probs[top_index]) * 100, 1)
 
-        # Yield prediction (NO scaler - Random Forest doesn't need it)
+        # Yield prediction - raw score from model
         if recommended_crop in le_yield.classes_:
             crop_encoded_yield = le_yield.transform([recommended_crop])[0]
         else:
@@ -85,12 +108,13 @@ def predict():
         yield_input = [[nitrogen, phosphorus, potassium,
                         humidity, temperature, float(crop_encoded_yield)]]
         raw_score = float(yield_model.predict(yield_input)[0])
-        raw_score = max(25, min(100, raw_score))
-        yield_score = round(raw_score, 1)
+
+        # Apply fertility guardrail to ensure consistency
+        yield_score = apply_fertility_guardrail(raw_score, fertility)
 
         return jsonify({
             'status':           'success',
-            'fertility_status': str(fertility),
+            'fertility_status': fertility,
             'recommended_crop': str(recommended_crop),
             'crop_confidence':  confidence,
             'yield_score':      yield_score
